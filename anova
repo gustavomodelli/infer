@@ -1,0 +1,30 @@
+library(tidyverse)
+library(infer)
+
+
+##Example Anova
+beer <- data.frame(
+  group = c(rep('control', 100), rep('exp1', 100), rep('exp2', 100)),
+  validy = c(rnorm(100, 20, 5), rnorm(100, 25, 4), rnorm(100, 25, 3))
+)
+
+
+ggplot(beer, aes(group, validy, fill = group))+
+  geom_boxplot()
+
+##Comparing using F test
+obs_diff <- beer %>% 
+  specify(validy ~ group) %>% 
+  calculate(stat = 'F')
+
+null_hypothesis <- beer %>% 
+  specify(validy ~ group) %>% 
+  hypothesize(null = 'independence') %>% 
+  generate(reps = 1000, type = 'permute') %>% 
+  calculate(stat = 'F')
+
+visualise(null_hypothesis)+
+  shade_p_value(obs_diff, direction = 'right')
+
+null_hypothesis %>% 
+  get_p_value(obs_diff, direction = 'right')
