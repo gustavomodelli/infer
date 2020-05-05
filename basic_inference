@@ -1,0 +1,156 @@
+library(tidyverse)
+library(infer)
+library(moderndive)
+library(arsenal)
+
+## Book
+## https://moderndive.com/
+
+data("promotions")
+head(promotions)
+
+ggplot(promotions, aes(gender, fill = decision))+
+  geom_bar()
+
+##Diff in proportions
+prop.table(table(promotions$gender, promotions$decision))
+chisq.test(table(promotions$gender, promotions$decision), correct = FALSE)
+chisq.test(table(promotions$gender, promotions$decision), correct = FALSE,
+           simulate.p.value = TRUE)
+
+##With arsenal
+table01 <- tableby(decision ~ gender, data = promotions) 
+summary(table01, text = TRUE)
+
+##With MonteCarlo Replication p calue was not reached 0.05
+
+
+##--------- Using Infer ------------------------------ ##
+
+null_hypothesis <- promotions %>% 
+  specify(decision ~ gender, success = 'promoted') %>% 
+  hypothesize(null = 'independence') %>% 
+  generate(reps = 1000, type = 'permute') %>% 
+  calculate(stat = 'diff in props', order = c('male','female'))
+
+
+obs_diff_prop <- promotions %>% 
+  specify(decision ~ gender, success = 'promoted') %>% 
+  calculate(stat = 'diff in props', order = c('male','female'))
+
+
+## Visualizations
+
+visualise(null_hypothesis, bins = 10)
+
+## Add p value
+
+visualise(null_hypothesis, bins = 10) +
+  shade_p_value(obs_diff_prop, direction = 'both')
+
+## get p value
+null_hypothesis %>% 
+  get_p_value(obs_diff_prop, direction = 'right')
+
+##-- Confidence Interval -------------- ##
+## Delete hypothesis and use bootstrap
+## get_confidence
+
+percentile_ci <- promotions %>% 
+  specify(decision ~ gender, success = 'promoted') %>% 
+  generate(reps = 1000, type = 'bootstrap') %>% 
+  calculate(stat = 'diff in props', order = c('male','female'))
+
+ci <- percentile_ci%>% 
+  get_confidence_interval(level = 0.95, type = 'percentile')
+
+visualise(percentile_ci)+
+  shade_confidence_interval(endpoints = ci)
+
+## --- A simulate model with means
+
+beer <- data.frame(
+  group = c(rep('control', 100), rep('experimental', 100)),
+  validity = c(rnorm(100, 50, 10), rnorm(100, 80,12))
+)
+
+ggplot(beer, aes(group, validity, fill = group))+
+  geom_boxplot()
+
+## As simple T test
+table02 <- tableby(group ~ validity, data = beer)
+summary(table02, text = TRUE)
+
+
+## ----- Using Infer ----------------------------- ##
+
+null_hypothesis <- beer %>% 
+  specify(validity ~ group) %>% 
+  hypothesize(null = 'independence') %>% 
+  generate(reps = 1000, type = 'permute') %>% 
+  calculate(stat = 'diff in means', order = c('control','experimental'))
+
+obs_diff_prop <- beer %>%
+  specify(validity ~ group) %>%
+  calculate(stat = 'diff in means', order = c('control','experimental'))
+
+## Visualize
+
+visualise(null_hypothesis, bins = 10)+
+  shade_p_value(obs_diff_prop, direction = 'both')
+
+null_hypothesis %>% 
+  get_p_value(obs_diff_prop, direction = 'both')
+
+## Confidence Intervals
+
+conf_int <- beer %>% 
+  specify(validity ~ group) %>% 
+  generate(reps = 1000, type = 'bootstrap') %>% 
+  calculate(stat = 'diff in means', order = c('control','experimental'))
+
+conf_int %>% 
+  get_confidence_interval(conf_int, level = 0.95, type = 'percentile')
+
+##------------ Other example ----------------------------
+
+data("movies_sample")
+head(movies_sample)
+
+
+ggplot(movies_sample, aes(genre, rating, fill = genre))+
+  geom_boxplot()
+
+
+## --- First Test Hypothesis
+
+null_hypothesis <- movies_sample %>% 
+  specify(rating ~ genre) %>% 
+  hypothesize(null = 'independence') %>% 
+  generate(reps = 1000, type = 'permute') %>% 
+  calculate(stat = 'diff in medians', order = c('Action','Romance'))
+
+
+observed_diff <- movies_sample %>% 
+  specify(rating ~ genre) %>% 
+  calculate(stat = 'diff in medians', order = c('Action','Romance'))
+
+
+visualise(null_hypothesis)+
+  shade_p_value(observed_diff, direction = 'both')
+
+null_hypothesis %>% 
+  get_p_value(observed_diff, direction = 'both')
+
+##Confidence Intervals
+
+
+ci_interval <- movies_sample %>% 
+  specify(rating ~ genre) %>% 
+  generate(reps = 1000, type = 'bootstrap') %>% 
+  calculate(stat = 'diff in means', order = c('Action','Romance'))
+
+visualise(ci_interval)
+
+ci <- ci_interval %>% 
+  get_confidence_interval(level = 0.95, type = 'percentile')
